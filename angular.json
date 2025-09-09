@@ -26,7 +26,8 @@
             ],
             "styles": [
               "src/styles.css"
-            ]
+            ],
+            "outputPath": "dist/automation-yapla-web"
           },
           "configurations": {
             "production": {
@@ -85,8 +86,14 @@
               "src/styles.css"
             ]
           }
+        },
+        "deploy": {
+          "builder": "angular-cli-ghpages:deploy"
         }
       }
     }
+  },
+  "cli": {
+    "analytics": "0fe91f0c-6a1b-44c8-a699-829498dceef4"
   }
 }
