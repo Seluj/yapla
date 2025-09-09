@@ -1,11 +1,11 @@
 <div class="container">
-  <h1>Yapla Members CSV Exporter</h1>
-  <p class="preview-note">Upload an Excel file, map the columns, and export a clean CSV for Yapla.</p>
+  <h1>Exportateur CSV pour Membres Yapla</h1>
+  <p class="preview-note">Téléchargez un fichier Excel, associez les colonnes et exportez un CSV propre pour Yapla.</p>
 
   <section class="upload-section">
-    <h2>1) Upload Excel</h2>
+    <h2>Télécharger Excel</h2>
     <div class="form-group">
-      <label for="excelFile">Choose .xlsx or .xls file</label>
+      <label for="excelFile">Choisir un fichier .xlsx ou .xls</label>
       <input id="excelFile" type="file" accept=".xlsx,.xls" (change)="onFileChange($event)"/>
     </div>
 
@@ -16,40 +16,40 @@
 
   @if (headers.length) {
     <section class="mapping-section">
-      <h2>2) Map Columns</h2>
-      <p class="preview-note">Select which columns correspond to each field.</p>
-      <div style="display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 1rem;">
+      <h2>Association des Colonnes</h2>
+      <p class="preview-note">Sélectionnez les colonnes correspondant à chaque champ dans votre fichier Excel.</p>
+      <div class="column-grid" style="display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 1.5rem;">
         <div class="form-group">
-          <label>First Name</label>
+          <label>Prénom</label>
           <select [(ngModel)]="firstNameCol">
-            <option [ngValue]="null" disabled selected>Choose column</option>
+            <option [ngValue]="null" disabled selected>Choisir une colonne</option>
             @for (h of headers; track h) {
               <option [ngValue]="h">{{ h }}</option>
             }
           </select>
         </div>
         <div class="form-group">
-          <label>Last Name</label>
+          <label>Nom</label>
           <select [(ngModel)]="lastNameCol">
-            <option [ngValue]="null" disabled selected>Choose column</option>
+            <option [ngValue]="null" disabled selected>Choisir une colonne</option>
             @for (h of headers; track h) {
               <option [ngValue]="h">{{ h }}</option>
             }
           </select>
         </div>
         <div class="form-group">
-          <label>Adhesion Start</label>
+          <label>Début d'adhésion</label>
           <select [(ngModel)]="adhesionStartCol">
-            <option [ngValue]="null" disabled selected>Choose column</option>
+            <option [ngValue]="null" disabled selected>Choisir une colonne</option>
             @for (h of headers; track h) {
               <option [ngValue]="h">{{ h }}</option>
             }
           </select>
         </div>
         <div class="form-group">
-          <label>Adhesion End</label>
+          <label>Fin d'adhésion</label>
           <select [(ngModel)]="adhesionEndCol">
-            <option [ngValue]="null" disabled selected>Choose column</option>
+            <option [ngValue]="null" disabled selected>Choisir une colonne</option>
             @for (h of headers; track h) {
               <option [ngValue]="h">{{ h }}</option>
             }
@@ -59,14 +59,16 @@
     </section>
 
     <section class="preview-section">
-      <h2>3) Export</h2>
+      <h2>Exporter</h2>
       <div class="form-group">
-        <label>Export file name</label>
-        <input type="text" [(ngModel)]="exportPath" placeholder="adherent.csv" readonly>
+        <label>Nom du fichier d'exportation</label>
+        <input type="text" [(ngModel)]="exportPath" placeholder="adherents.csv" readonly>
       </div>
-      <button (click)="exportData()" [disabled]="!canExport">Export CSV</button>
+      <button (click)="exportData()" [disabled]="!canExport">
+        Exporter CSV
+      </button>
       @if (!canExport) {
-        <p class="preview-note">Select all four fields to enable export.</p>
+        <p class="preview-note">Sélectionnez les quatre champs pour activer l'exportation.</p>
       }
 
       @if (statusMessage) {

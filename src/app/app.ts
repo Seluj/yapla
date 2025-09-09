@@ -92,6 +92,17 @@ export class App {
       this.lastNameCol = null;
       this.adhesionStartCol = null;
       this.adhesionEndCol = null;
+      headerSet.forEach((h) => {
+        if (h.includes('Prénom')) {
+          this.firstNameCol = h;
+        } else if (h.includes('Nom')) {
+          this.lastNameCol = h;
+        } else if (h.includes('Début')) {
+          this.adhesionStartCol = h;
+        } else if (h.includes('Expiration')) {
+          this.adhesionEndCol = h;
+        }
+      })
     } catch (e: any) {
       this.parseError = 'Failed to parse Excel file. Please ensure it is a valid .xlsx or .xls.';
       console.error(e);
