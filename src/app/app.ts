@@ -1,7 +1,6 @@
-import {Component, signal} from '@angular/core';
+import {Component} from '@angular/core';
 import {RouterOutlet} from '@angular/router';
 import {FormsModule} from '@angular/forms';
-import {formatDate} from '@angular/common';
 
 // We'll lazy import xlsx only when needed to avoid SSR issues
 
@@ -160,10 +159,10 @@ export class App {
     const adherents: Adherent[] = [];
 
     for (const row of this.rows) {
-      const nom = row[this.lastNameCol!];
-      const prenom = row[this.firstNameCol!];
-      const debut = this.parseDate(row[this.adhesionStartCol!]);
-      const fin = this.parseDate(row[this.adhesionEndCol!]);
+      const nom: string | null = row[this.lastNameCol!];
+      const prenom: string | null = row[this.firstNameCol!];
+      const debut: Date | null = this.parseDate(row[this.adhesionStartCol!]);
+      const fin: Date | null = this.parseDate(row[this.adhesionEndCol!]);
 
       if (!nom || !prenom || !debut || !fin) {
         continue;
@@ -177,8 +176,14 @@ export class App {
     const uniqueAdherents: Adherent[] = [];
     const bestByKey: Record<string, Adherent> = {};
 
+    const currentDate = new Date();
+
     for (const adherent of adherents) {
       const key = adherent.key();
+      // Before continuing, check if the current date is between debut and fin
+      if (adherent.debutAdhesion > currentDate || adherent.finAdhesion < currentDate) {
+        continue; // Skip non-active members
+      }
       if (!bestByKey[key] || adherent.debutAdhesion < bestByKey[key].debutAdhesion) {
         bestByKey[key] = adherent;
       }
@@ -190,7 +195,6 @@ export class App {
 
     uniqueAdherents.sort((a, b) => a.debutAdhesion.getTime() - b.debutAdhesion.getTime());
 
-    let currentDate = new Date();
     let csvContent = "Base de données;Base de données;" + this.formatDate(currentDate) + ";" + this.formatDate(currentDate) + "\n";
     let errorContent = "";
 
