@@ -1,12 +1,18 @@
 <div class="container">
   <h1>Exportateur CSV pour Membres Yapla</h1>
-  <p class="preview-note">Téléchargez un fichier Excel, associez les colonnes et exportez un CSV propre pour Yapla.</p>
+  <p class="preview-note">Téléchargez un fichier Excel ou CSV, associez les colonnes et exportez un CSV propre pour Yapla.</p>
 
   <section class="upload-section">
-    <h2>Télécharger Excel</h2>
+    <h2>Télécharger</h2>
     <div class="form-group">
-      <label for="excelFile">Choisir un fichier .xlsx ou .xls</label>
-      <input id="excelFile" type="file" accept=".xlsx,.xls" (change)="onFileChange($event)"/>
+      <label for="excelFile">Choisir un fichier .xlsx, .xls ou .csv</label>
+      <input id="excelFile" type="file" accept=".xlsx,.xls,.csv" (change)="onFileChange($event)"/>
+    </div>
+
+    <div class="dropzone"
+         (drop)="onFileDrop($event)"
+         (dragover)="onDragOver($event)">
+      Glissez-déposez votre fichier ici
     </div>
 
     @if (parseError) {
@@ -21,7 +27,7 @@
       <div class="column-grid" style="display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 1.5rem;">
         <div class="form-group">
           <label>Prénom</label>
-          <select [(ngModel)]="firstNameCol">
+          <select [(ngModel)]="firstNameCol" (ngModelChange)="onMappingChange()">
             <option [ngValue]="null" disabled selected>Choisir une colonne</option>
             @for (h of headers; track h) {
               <option [ngValue]="h">{{ h }}</option>
@@ -30,7 +36,7 @@
         </div>
         <div class="form-group">
           <label>Nom</label>
-          <select [(ngModel)]="lastNameCol">
+          <select [(ngModel)]="lastNameCol" (ngModelChange)="onMappingChange()">
             <option [ngValue]="null" disabled selected>Choisir une colonne</option>
             @for (h of headers; track h) {
               <option [ngValue]="h">{{ h }}</option>
@@ -39,7 +45,7 @@
         </div>
         <div class="form-group">
           <label>Début d'adhésion</label>
-          <select [(ngModel)]="adhesionStartCol">
+          <select [(ngModel)]="adhesionStartCol" (ngModelChange)="onMappingChange()">
             <option [ngValue]="null" disabled selected>Choisir une colonne</option>
             @for (h of headers; track h) {
               <option [ngValue]="h">{{ h }}</option>
@@ -48,7 +54,7 @@
         </div>
         <div class="form-group">
           <label>Fin d'adhésion</label>
-          <select [(ngModel)]="adhesionEndCol">
+          <select [(ngModel)]="adhesionEndCol" (ngModelChange)="onMappingChange()">
             <option [ngValue]="null" disabled selected>Choisir une colonne</option>
             @for (h of headers; track h) {
               <option [ngValue]="h">{{ h }}</option>

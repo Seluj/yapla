@@ -1,0 +1,28 @@
+.container { max-width: 960px; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; }
+
+h1 { font-size: 1.8rem; margin-bottom: .5rem; }
+
+.upload-section, .mapping-section, .preview-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+
+.form-group { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }
+
+select, input[type="text"], input[type="file"] { padding: .5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: .95rem; }
+
+button { background: #2563eb; border: 0; color: white; padding: .6rem 1rem; border-radius: 6px; cursor: pointer; }
+button[disabled] { background: #9ca3af; cursor: not-allowed; }
+
+.preview-note { color: #6b7280; font-size: .9rem; }
+.error-message { color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; padding: .5rem .75rem; border-radius: 6px; }
+.status-message { color: #374151; background: #f3f4f6; border: 1px solid #e5e7eb; padding: .5rem .75rem; border-radius: 6px; white-space: pre-wrap; }
+
+.column-grid .form-group label { font-weight: 600; }
+
+.preview-table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+.preview-table th, .preview-table td { border: 1px solid #e5e7eb; padding: .5rem; text-align: left; }
+.preview-table thead { background: #f9fafb; }
+
+.actions { display: flex; gap: .5rem; margin-top: .75rem; }
+.actions button { background: #6b7280; }
+.actions button:first-child { background: #10b981; }
+
+.dropzone { border: 2px dashed #93c5fd; border-radius: 8px; padding: 1.25rem; text-align: center; color: #2563eb; background: #eff6ff; margin-top: .5rem; }

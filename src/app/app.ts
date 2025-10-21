@@ -67,43 +67,93 @@ export class App {
   parseError: string | null = null;
   statusMessage: string | null = null;
 
+  private mappingStorageKey(headers: string[]): string {
+    return 'mapping:' + headers.slice().sort().join('|');
+  }
+
+  onDragOver(evt: DragEvent) {
+    evt.preventDefault();
+  }
+
+  onFileDrop(evt: DragEvent) {
+    evt.preventDefault();
+    const file = evt.dataTransfer && evt.dataTransfer.files && evt.dataTransfer.files[0];
+    if (!file) return;
+    this.handleFile(file).catch((e) => console.error(e));
+  }
+
   async onFileChange(evt: Event) {
     this.parseError = null;
     const input = evt.target as HTMLInputElement;
     const file = input.files && input.files[0];
     if (!file) return;
+    await this.handleFile(file);
+  }
 
+  private suggestAndLoadMapping() {
+    // Try to load from localStorage first
+    const key = this.mappingStorageKey(this.headers);
+    const saved = localStorage.getItem(key);
+    this.firstNameCol = null;
+    this.lastNameCol = null;
+    this.adhesionStartCol = null;
+    this.adhesionEndCol = null;
+    if (saved) {
+      try {
+        const obj = JSON.parse(saved);
+        this.firstNameCol = obj.firstNameCol ?? null;
+        this.lastNameCol = obj.lastNameCol ?? null;
+        this.adhesionStartCol = obj.adhesionStartCol ?? null;
+        this.adhesionEndCol = obj.adhesionEndCol ?? null;
+        return;
+      } catch {}
+    }
+    // Fallback: heuristic suggestions based on header labels
+    for (const h of this.headers) {
+      const lower = h.toLowerCase();
+      if (!this.firstNameCol && (lower.includes('prénom') || lower.includes('prenom') || lower.includes('first'))) this.firstNameCol = h;
+      if (!this.lastNameCol && (lower.includes('nom') || lower.includes('last'))) this.lastNameCol = h;
+      if (!this.adhesionStartCol && (lower.includes('début') || lower.includes('debut') || lower.includes('start'))) this.adhesionStartCol = h;
+      if (!this.adhesionEndCol && (lower.includes('fin') || lower.includes('expiration') || lower.includes('end'))) this.adhesionEndCol = h;
+    }
+  }
+
+  onMappingChange() {
+    if (!this.headers.length) return;
+    const key = this.mappingStorageKey(this.headers);
+    const obj = {
+      firstNameCol: this.firstNameCol,
+      lastNameCol: this.lastNameCol,
+      adhesionStartCol: this.adhesionStartCol,
+      adhesionEndCol: this.adhesionEndCol,
+    };
+    localStorage.setItem(key, JSON.stringify(obj));
+  }
+
+  async handleFile(file: File) {
     try {
       const XLSX = await import('xlsx');
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, {type: 'array'});
+      const isCsv = file.name.toLowerCase().endsWith('.csv') || (file.type && file.type.includes('csv'));
+      let workbook: any;
+      if (isCsv) {
+        const text = await file.text();
+        workbook = XLSX.read(text, {type: 'string'});
+      } else {
+        const data = await file.arrayBuffer();
+        workbook = XLSX.read(data, {type: 'array'});
+      }
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      // Convert to JSON maintaining headers
       const json: any[] = XLSX.utils.sheet_to_json(worksheet, {defval: ''});
       this.rows = json;
-      // Extract headers from worksheet: use keys of first row
       const headerSet = new Set<string>();
       json.forEach((row) => Object.keys(row).forEach((k) => headerSet.add(k)));
       this.headers = Array.from(headerSet);
-      // Reset selections
-      this.firstNameCol = null;
-      this.lastNameCol = null;
-      this.adhesionStartCol = null;
-      this.adhesionEndCol = null;
-      headerSet.forEach((h) => {
-        if (h.includes('Prénom')) {
-          this.firstNameCol = h;
-        } else if (h.includes('Nom')) {
-          this.lastNameCol = h;
-        } else if (h.includes('Début')) {
-          this.adhesionStartCol = h;
-        } else if (h.includes('Expiration')) {
-          this.adhesionEndCol = h;
-        }
-      })
+      this.suggestAndLoadMapping();
+      this.statusMessage = `${this.rows.length} lignes chargées.`;
+      this.parseError = null;
     } catch (e: any) {
-      this.parseError = 'Failed to parse Excel file. Please ensure it is a valid .xlsx or .xls.';
+      this.parseError = "Échec de l'analyse du fichier. Assurez-vous qu'il est valide (.xlsx/.xls/.csv).";
       console.error(e);
       this.headers = [];
       this.rows = [];

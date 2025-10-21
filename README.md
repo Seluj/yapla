@@ -1,59 +1,58 @@
-# AutomationYaplaWeb
+# Automation Yapla Web
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.2.2.
+CSV exporter for Yapla members. Upload your Excel (.xlsx/.xls) or CSV, map the columns, preview the first rows, and export a clean CSV.
 
-## Development server
+## What's new
+- Drag-and-drop upload zone
+- CSV file support in addition to Excel
+- Auto-detection of common French headers (Prénom, Nom, Début, Fin/Expiration)
+- Mapping persistence (localStorage) per header set
+- Preview of first 5 mapped rows and total row count
+- Reset mapping and Clear data buttons
+- Hardened Docker/Nginx with static asset caching and security headers
 
-To start a local development server, run:
+Chrome is the only supported browser target.
 
-```bash
-ng serve
-```
+## Development
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Start a dev server:
 
 ```bash
-ng generate --help
+npm install
+npm start
 ```
 
-## Building
+Open http://localhost:4200
 
-To build the project run:
+## Build
 
 ```bash
-ng build
+npm run build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Outputs to `dist/`.
 
-## Running unit tests
+## Docker (production-like)
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+Build and run with Compose:
 
 ```bash
-ng test
+docker compose up --build
 ```
 
-## Running end-to-end tests
+Then open http://localhost:8081
 
-For end-to-end (e2e) testing, run:
+Notes:
+- Uses a multi-stage Docker build (Node builder -> nginx unprivileged runtime)
+- Nginx serves `/dist/*/browser` output
+- Security headers and long-term caching for static assets are enabled
 
-```bash
-ng e2e
-```
+## Usage
+1. Upload or drop an `.xlsx`, `.xls`, or `.csv` file.
+2. Verify or adjust the detected column mappings (Prénom, Nom, Début, Fin).
+3. Review the preview table.
+4. Click “Exporter CSV” to download the processed file.
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+## Project Info
+- Angular CLI: 20.2.x
+- Node: as defined in Docker ARG (24-alpine at build time). Local dev can use a compatible Node 20/22/24.
