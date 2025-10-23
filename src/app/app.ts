@@ -1,7 +1,8 @@
 import {Component} from '@angular/core';
 import {RouterOutlet} from '@angular/router';
 import {FormsModule} from '@angular/forms';
-import * as XLSX from 'xlsx';
+
+// We'll lazy import xlsx only when needed to avoid SSR issues
 
 class Adherent {
   nom: string;
@@ -131,6 +132,7 @@ export class App {
 
   async handleFile(file: File) {
     try {
+      const XLSX = await import('xlsx');
       const isCsv = file.name.toLowerCase().endsWith('.csv') || (file.type && file.type.includes('csv'));
       let workbook: any;
       if (isCsv) {
