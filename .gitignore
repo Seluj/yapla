@@ -40,3 +40,8 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Exports Yapla et CSV produits : données personnelles, à ne jamais committer
+/*.xlsx
+/*.xls
+/*.csv
