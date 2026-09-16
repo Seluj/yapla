@@ -1,6 +1,6 @@
 {
   "name": "automation-yapla-web",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -39,7 +39,6 @@
     "@angular/cli": "^22.1.8",
     "@angular/compiler-cli": "^22.1.6",
     "@eslint/js": "^10.0.1",
-    "angular-cli-ghpages": "^3.1.0",
     "angular-eslint": "22.5.0",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",

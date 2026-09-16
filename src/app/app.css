@@ -21,7 +21,8 @@ h1 {
 .upload-section,
 .mapping-section,
 .preview-section,
-.export-section {
+.export-section,
+.send-section {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -39,6 +40,7 @@ h1 {
 
 select,
 input[type='text'],
+input[type='password'],
 input[type='file'] {
   padding: 0.5rem;
   border: 1px solid #d1d5db;
@@ -88,6 +90,13 @@ button[disabled] {
 .status-message li.warning {
   color: #b45309;
   font-weight: 600;
+}
+/* Échec d'envoi vers le bot : le message porte lui-même la classe, contrairement
+   aux avertissements du compte rendu qui sont des <li> à l'intérieur. */
+.status-message.warning {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
 }
 .status-message details {
   margin-top: 0.75rem;

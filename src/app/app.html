@@ -215,5 +215,46 @@
         </div>
       }
     </section>
+
+    <section class="send-section">
+      <h2>Envoyer au bot</h2>
+      <p class="preview-note">
+        Remplace directement le fichier des adhérents du bot Discord, sans passer par la commande
+        <code>/upload</code>. Le bot applique les mêmes contrôles de format.
+      </p>
+
+      <div class="form-group">
+        <label for="botToken">Jeton d'API du bot</label>
+        <input
+          id="botToken"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Jeton configuré dans API_TOKEN"
+          [value]="botToken()"
+          (input)="onTokenChange($event)"
+        />
+      </div>
+
+      <button type="button" (click)="sendToBot()" [disabled]="!canSend()">
+        {{ sendState().kind === 'sending' ? 'Envoi en cours…' : 'Envoyer au bot' }}
+      </button>
+
+      @if (canExport() && !botToken().trim()) {
+        <p class="preview-note">Renseignez le jeton pour activer l'envoi.</p>
+      }
+
+      @if (sendState(); as state) {
+        @if (state.kind === 'sent') {
+          <p class="status-message">
+            Fichier déposé dans le bot : <strong>{{ state.rows }}</strong> ligne(s) enregistrée(s).
+            La commande <code>/role</code> utilisera cette version.
+          </p>
+        }
+        @if (state.kind === 'failed') {
+          <p class="status-message warning">{{ state.message }}</p>
+        }
+      }
+    </section>
   }
 </div>

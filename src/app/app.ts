@@ -17,6 +17,7 @@ import {
   isMappingComplete,
   suggestMapping,
 } from './mapping';
+import { UploadError, loadBotToken, saveBotToken, sendCsvToBot } from './bot-api';
 import { loadMapping, saveMapping } from './mapping-storage';
 import { formatCellValue } from './text';
 
@@ -40,6 +41,13 @@ const PREVIEW_ROWS = 10;
 
 /** Nombre de lignes rejetées détaillées dans le compte rendu. */
 const REJECTED_SAMPLE = 10;
+
+/** État de l'envoi vers le bot, pour le retour affiché à l'utilisateur. */
+type SendState =
+  | { kind: 'idle' }
+  | { kind: 'sending' }
+  | { kind: 'sent'; rows: number }
+  | { kind: 'failed'; message: string };
 
 /** Une ligne de l'aperçu, avec les dates telles qu'elles seront interprétées. */
 interface PreviewRow {
@@ -78,7 +86,19 @@ export class App {
   /** Compte rendu du dernier export, affiché sous le bouton. */
   readonly report = signal<ExtractionReport | null>(null);
 
+  /** Jeton d'API du bot, conservé d'une visite à l'autre. */
+  readonly botToken = signal(loadBotToken());
+
+  /** Résultat du dernier envoi vers le bot. */
+  readonly sendState = signal<SendState>({ kind: 'idle' });
+
   readonly canExport = computed(() => this.rows().length > 0 && isMappingComplete(this.mapping()));
+
+  /** L'envoi exige, en plus d'un export possible, un jeton saisi. */
+  readonly canSend = computed(
+    () =>
+      this.canExport() && this.botToken().trim().length > 0 && this.sendState().kind !== 'sending',
+  );
 
   /**
    * Vrai lorsqu'aucune colonne de statut n'est associée : toutes les adhésions
@@ -153,6 +173,7 @@ export class App {
     this.loading.set(true);
     this.parseError.set(null);
     this.report.set(null);
+    this.sendState.set({ kind: 'idle' });
 
     try {
       const XLSX = await import('xlsx');
@@ -200,12 +221,43 @@ export class App {
     }
   }
 
+  onTokenChange(event: Event): void {
+    const token = (event.target as HTMLInputElement).value;
+    this.botToken.set(token);
+    saveBotToken(token);
+    this.sendState.set({ kind: 'idle' });
+  }
+
   exportData(): void {
     if (!this.canExport()) return;
 
     const report = extractAdherents(this.rows(), this.mapping());
     this.report.set(report);
     this.download(buildCsv(report.adherents), this.exportPath());
+  }
+
+  /**
+   * Envoie le CSV au bot sans passer par le téléchargement ni par `/upload`.
+   *
+   * Le compte rendu d'extraction est produit et affiché comme pour un export
+   * classique : on ne dépose rien dans le bot sans que l'utilisateur ait vu ce
+   * que contient le fichier envoyé.
+   */
+  async sendToBot(): Promise<void> {
+    if (!this.canSend()) return;
+
+    const report = extractAdherents(this.rows(), this.mapping());
+    this.report.set(report);
+    this.sendState.set({ kind: 'sending' });
+
+    try {
+      const result = await sendCsvToBot(buildCsv(report.adherents), this.botToken());
+      this.sendState.set({ kind: 'sent', rows: result.rows });
+    } catch (error) {
+      const message =
+        error instanceof UploadError ? error.message : "Échec de l'envoi vers le bot.";
+      this.sendState.set({ kind: 'failed', message });
+    }
   }
 
   /** Libellé lisible d'un adhérent trop long pour Discord. */

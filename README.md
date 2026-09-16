@@ -3,10 +3,12 @@
 Exportateur CSV pour les membres Yapla du **BDS (Bureau des Sports)** de l'ESTA.
 
 On dépose un export Excel (`.xlsx` / `.xls`) ou CSV issu de Yapla, on associe les colonnes,
-on vérifie l'aperçu, et on exporte un CSV propre destiné au bot Discord
+on vérifie l'aperçu, et on obtient un CSV propre destiné au bot Discord
 [`Discord-Bot-BDS-v2`](../Discord-Bot-BDS-v2).
 
-Application Angular 100 % côté client : aucun fichier ne quitte le navigateur.
+Le fichier peut être **téléchargé**, ou **envoyé directement au bot** sans passer par
+la commande `/upload`. Le traitement reste intégralement dans le navigateur : rien
+n'est transmis tant que l'envoi vers le bot n'est pas demandé explicitement.
 
 ---
 
@@ -84,11 +86,14 @@ différé chargé seulement au dépôt d'un fichier).
 
 ## Docker
 
+L'image se construit depuis la racine de l'espace de travail, où vit le compose
+unique des deux services :
+
 ```bash
-docker compose up --build
+docker compose -f compose.yaml -f compose.build.yaml build web
 ```
 
-Puis ouvrir **http://localhost:8100**
+Puis, la pile démarrée, ouvrir **http://localhost:8100**
 
 Notes :
 
@@ -99,17 +104,35 @@ Notes :
   inclus dans chaque bloc `location` : `Content-Security-Policy`,
   `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
   `Cross-Origin-Opener-Policy`, `Permissions-Policy`
+- `location = /api/adherents` relaie vers le conteneur du bot sur le réseau interne
+
+Seul ce dernier point demande que le bot tourne à côté : lancée seule, l'image sert
+l'application normalement et l'envoi vers le bot échoue avec un message explicite.
+
+### Pourquoi un relais plutôt qu'un appel direct
+
+Le navigateur ne parle qu'à l'origine qui lui a servi la page. Cela évite d'exposer
+l'API du bot sur Internet, dispense de toute configuration CORS, et permet surtout de
+garder `connect-src 'self'` dans la politique de sécurité de contenu : aucun script de
+cette page ne peut envoyer quoi que ce soit ailleurs.
 
 ---
 
 ## Déploiement
 
-GitHub Pages, via `angular-cli-ghpages` :
+Uniquement par conteneur, avec le bot, depuis le dépôt de déploiement à la racine
+de l'espace de travail :
 
 ```bash
-npm run build
-npx ng deploy
+docker compose pull && docker compose up -d
 ```
+
+L'image est publiée sur `registry.selutech.fr/bds/yapla`. Voir
+[`../README.md`](../README.md) pour les variables d'environnement et la publication
+de nouvelles versions.
+
+> L'ancien déploiement GitHub Pages a été retiré : l'envoi direct vers le bot suppose
+> un relais côté serveur, qu'un hébergement statique ne peut pas fournir.
 
 ---
 
@@ -182,6 +205,7 @@ La logique métier est séparée du composant, en modules purs et testables :
 | `src/app/mapping-storage.ts` | Persistance du mapping dans `localStorage`                     |
 | `src/app/csv.ts`             | Échappement RFC 4180 et assemblage du document                 |
 | `src/app/adherent.ts`        | Modèle `Adherent`, filtres, déduplication, génération du CSV   |
+| `src/app/bot-api.ts`         | Dépôt du CSV dans le bot et persistance du jeton d'API         |
 | `src/app/app.ts`             | Composant : lecture du fichier, état (signals), aperçu, export |
 
 Le composant est en `signal()` et l'application tourne en mode **zoneless**
@@ -202,7 +226,7 @@ Le composant est en `signal()` et l'application tourne en mode **zoneless**
 | `@angular/*`             | 20.2.4 | **22.1.6**               |
 | `@angular/build` / `cli` | 20.2.2 | **22.1.8**               |
 | `typescript`             | 5.9.2  | **6.0.3**                |
-| `angular-cli-ghpages`    | 2.0.3  | **3.1.0**                |
+| `angular-cli-ghpages`    | 2.0.3  | **retiré depuis**        |
 | `xlsx`                   | 0.18.5 | **0.20.3** (CDN SheetJS) |
 
 Les deux majeures Angular ont été passées séparément (20 → 21, puis 21 → 22).
@@ -225,7 +249,8 @@ la migration officielle `ng update @angular/cli --name migrate-karma-to-vitest`.
 les trois lignes correspondantes du tableau d'obsolescence de l'audit.
 
 Le reste a été fermé par la montée Angular, `angular-cli-ghpages@3` et un
-`npm audit fix`.
+`npm audit fix`. Ce dernier paquet a depuis été désinstallé avec l'abandon du
+déploiement GitHub Pages.
 
 ### Le cas `xlsx`
 
