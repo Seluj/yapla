@@ -1,6 +1,8 @@
 /* You can add global styles to this file, and also import other style files */
 * {
-  font-family: Raleway /* Replace with your custom font */, sans-serif !important;
+  font-family:
+    Raleway /* Replace with your custom font */,
+    sans-serif !important;
   /* Add !important to overwrite all elements */
 }
 :root {
@@ -66,7 +68,9 @@ h2::before {
   border-radius: 50%;
 }
 
-.upload-section, .mapping-section, .preview-section {
+.upload-section,
+.mapping-section,
+.preview-section {
   margin: 1.5rem 0;
   padding: 1.5rem;
   border-radius: var(--radius-md);
@@ -76,7 +80,9 @@ h2::before {
   transition: var(--transition);
 }
 
-.upload-section:hover, .mapping-section:hover, .preview-section:hover {
+.upload-section:hover,
+.mapping-section:hover,
+.preview-section:hover {
   box-shadow: var(--shadow-md);
 }
 
@@ -91,7 +97,8 @@ label {
   color: var(--text-color);
 }
 
-select, input {
+select,
+input {
   width: 100%;
   padding: 0.75rem;
   border: 1px solid var(--border-color);
@@ -99,10 +106,11 @@ select, input {
   font-family: inherit;
   font-size: 1rem;
   transition: var(--transition);
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-select:focus, input:focus {
+select:focus,
+input:focus {
   outline: none;
   border-color: var(--secondary-color);
   box-shadow: 0 0 0 3px rgba(110, 181, 192, 0.25);
@@ -149,7 +157,8 @@ table {
   box-shadow: var(--shadow-sm);
 }
 
-th, td {
+th,
+td {
   border: 1px solid var(--border-color);
   padding: 0.75rem;
   text-align: left;

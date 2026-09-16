@@ -1,274 +1,230 @@
-import {Component} from '@angular/core';
-import {RouterOutlet} from '@angular/router';
-import {FormsModule} from '@angular/forms';
+import { Component, computed, signal } from '@angular/core';
 
-// We'll lazy import xlsx only when needed to avoid SSR issues
+import {
+  Adherent,
+  ExtractionReport,
+  SheetRow,
+  buildCsv,
+  extractAdherents,
+  isValidatedStatus,
+} from './adherent';
+import { formatDate, parseDate } from './date-utils';
+import {
+  ColumnMapping,
+  EMPTY_MAPPING,
+  MAPPING_FIELDS,
+  MappingField,
+  isMappingComplete,
+  suggestMapping,
+} from './mapping';
+import { loadMapping, saveMapping } from './mapping-storage';
+import { formatCellValue } from './text';
 
-class Adherent {
+/**
+ * Options de lecture SheetJS.
+ *
+ * `raw` est indispensable sur les fichiers CSV : sans lui, SheetJS interprète
+ * lui-même les cellules ressemblant à des dates avec la convention **américaine**,
+ * avant même que le fichier n'atteigne notre analyseur. « 01/09/2025 » devenait
+ * ainsi le 9 janvier, tandis que « 15/03/2026 » restait du texte — une corruption
+ * silencieuse et, en prime, incohérente d'une ligne à l'autre.
+ *
+ * `cellDates` demande à SheetJS de décoder lui-même les vraies cellules date des
+ * classeurs Excel en objets `Date`, plutôt que de nous laisser reconstruire une
+ * date à partir d'un numéro de série et de sa fraction horaire.
+ */
+const READ_OPTIONS = { raw: true, cellDates: true } as const;
+
+/** Nombre de lignes affichées dans l'aperçu. */
+const PREVIEW_ROWS = 10;
+
+/** Nombre de lignes rejetées détaillées dans le compte rendu. */
+const REJECTED_SAMPLE = 10;
+
+/** Une ligne de l'aperçu, avec les dates telles qu'elles seront interprétées. */
+interface PreviewRow {
+  line: number;
   nom: string;
   prenom: string;
-  debutAdhesion: Date;
-  finAdhesion: Date;
-
-  constructor(nom: string, prenom: string, debutAdhesion: Date, finAdhesion: Date) {
-    this.nom = nom;
-    this.prenom = prenom;
-    this.debutAdhesion = debutAdhesion;
-    this.finAdhesion = finAdhesion;
-  }
-
-// Pour identifier les entrées en double
-  key(): string {
-    return `${this.nom || ''}\u0001${this.prenom || ''}`;
-  }
-
-  // Pour vérifier si le nom est trop long pour Discord
-  isTooLongForDiscord(): boolean {
-    const len = (this.nom?.length || 0) + (this.prenom?.length || 0);
-    return len > 32;
-  }
-
-  // Pour le format d'affichage et CSV
-  toString(): string {
-    return `${this.nom} ${this.prenom} : ${this.formatDate(this.debutAdhesion)} - ${this.formatDate(this.finAdhesion)}`;
-  }
-
-
-  toCsv(): string {
-    return `${this.nom};${this.prenom};${this.formatDate(this.debutAdhesion)};${this.formatDate(this.finAdhesion)}`;
-  }
-
-
-  formatDate(date: Date): string {
-    if (!date) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
+  debut: string;
+  fin: string;
+  debutParsed: string;
+  finParsed: string;
+  /** Valeur brute du statut, vide si aucune colonne de statut n'est associée. */
+  statut: string;
+  /** Faux lorsque la ligne sera écartée de l'export, quelle qu'en soit la raison. */
+  valid: boolean;
 }
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, FormsModule],
+  imports: [],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
 })
 export class App {
-  headers: string[] = [];
-  rows: any[] = [];
+  readonly mappingFields = MAPPING_FIELDS;
+  readonly previewLimit = PREVIEW_ROWS;
+  readonly rejectedSample = REJECTED_SAMPLE;
 
-  firstNameCol: string | null = null;
-  lastNameCol: string | null = null;
-  adhesionStartCol: string | null = null;
-  adhesionEndCol: string | null = null;
+  readonly fileName = signal<string | null>(null);
+  readonly headers = signal<readonly string[]>([]);
+  readonly rows = signal<readonly SheetRow[]>([]);
+  readonly mapping = signal<ColumnMapping>(EMPTY_MAPPING);
+  readonly exportPath = signal('adherent.csv');
+  readonly parseError = signal<string | null>(null);
+  readonly loading = signal(false);
 
-  exportPath: string = 'adherent.csv';
-  parseError: string | null = null;
-  statusMessage: string | null = null;
+  /** Compte rendu du dernier export, affiché sous le bouton. */
+  readonly report = signal<ExtractionReport | null>(null);
 
-  private mappingStorageKey(headers: string[]): string {
-    return 'mapping:' + headers.slice().sort().join('|');
+  readonly canExport = computed(() => this.rows().length > 0 && isMappingComplete(this.mapping()));
+
+  /**
+   * Vrai lorsqu'aucune colonne de statut n'est associée : toutes les adhésions
+   * seront exportées, y compris les annulées et les expirées.
+   */
+  readonly statusFilterDisabled = computed(
+    () => this.headers().length > 0 && !this.mapping().statusCol,
+  );
+
+  /**
+   * Aperçu des premières lignes telles qu'elles seront exportées, dates comprises :
+   * c'est le seul endroit où l'utilisateur peut vérifier que l'association des
+   * colonnes et la lecture des dates correspondent bien à son fichier.
+   */
+  readonly preview = computed<readonly PreviewRow[]>(() => {
+    const mapping = this.mapping();
+    if (!isMappingComplete(mapping)) return [];
+
+    return this.rows()
+      .slice(0, PREVIEW_ROWS)
+      .map((row, index) => {
+        const debut = row[mapping.adhesionStartCol!];
+        const fin = row[mapping.adhesionEndCol!];
+        const debutParsed = parseDate(debut);
+        const finParsed = parseDate(fin);
+        const nom = this.asText(row[mapping.lastNameCol!]);
+        const prenom = this.asText(row[mapping.firstNameCol!]);
+        const statusOk = !mapping.statusCol || isValidatedStatus(row[mapping.statusCol]);
+        return {
+          line: index + 2,
+          nom,
+          prenom,
+          debut: formatCellValue(debut),
+          fin: formatCellValue(fin),
+          debutParsed: formatDate(debutParsed),
+          finParsed: formatDate(finParsed),
+          statut: mapping.statusCol ? formatCellValue(row[mapping.statusCol]) : '',
+          valid: statusOk && !!nom && !!prenom && !!debutParsed && !!finParsed,
+        };
+      });
+  });
+
+  /** Lignes rejetées à détailler dans le compte rendu. */
+  readonly rejectedPreview = computed(
+    () => this.report()?.rejected.slice(0, REJECTED_SAMPLE) ?? [],
+  );
+
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
   }
 
-  onDragOver(evt: DragEvent) {
-    evt.preventDefault();
+  onFileDrop(event: DragEvent): void {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (file) void this.handleFile(file);
   }
 
-  onFileDrop(evt: DragEvent) {
-    evt.preventDefault();
-    const file = evt.dataTransfer && evt.dataTransfer.files && evt.dataTransfer.files[0];
-    if (!file) return;
-    this.handleFile(file).catch((e) => console.error(e));
+  onFileChange(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (file) void this.handleFile(file);
   }
 
-  async onFileChange(evt: Event) {
-    this.parseError = null;
-    const input = evt.target as HTMLInputElement;
-    const file = input.files && input.files[0];
-    if (!file) return;
-    await this.handleFile(file);
+  onColumnChange(field: MappingField, event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    const mapping: ColumnMapping = { ...this.mapping(), [field]: value || null };
+    this.mapping.set(mapping);
+    this.report.set(null);
+    if (this.headers().length) saveMapping(this.headers(), mapping);
   }
 
-  private suggestAndLoadMapping() {
-    // Try to load from localStorage first
-    const key = this.mappingStorageKey(this.headers);
-    const saved = localStorage.getItem(key);
-    this.firstNameCol = null;
-    this.lastNameCol = null;
-    this.adhesionStartCol = null;
-    this.adhesionEndCol = null;
-    if (saved) {
-      try {
-        const obj = JSON.parse(saved);
-        this.firstNameCol = obj.firstNameCol ?? null;
-        this.lastNameCol = obj.lastNameCol ?? null;
-        this.adhesionStartCol = obj.adhesionStartCol ?? null;
-        this.adhesionEndCol = obj.adhesionEndCol ?? null;
-        return;
-      } catch {}
-    }
-    // Fallback: heuristic suggestions based on header labels
-    for (const h of this.headers) {
-      const lower = h.toLowerCase();
-      if (!this.firstNameCol && (lower.includes('prénom') || lower.includes('prenom') || lower.includes('first'))) this.firstNameCol = h;
-      if (!this.lastNameCol && (lower.includes('nom') || lower.includes('last'))) this.lastNameCol = h;
-      if (!this.adhesionStartCol && (lower.includes('début') || lower.includes('debut') || lower.includes('start'))) this.adhesionStartCol = h;
-      if (!this.adhesionEndCol && (lower.includes('fin') || lower.includes('expiration') || lower.includes('end'))) this.adhesionEndCol = h;
-    }
-  }
+  async handleFile(file: File): Promise<void> {
+    this.loading.set(true);
+    this.parseError.set(null);
+    this.report.set(null);
 
-  onMappingChange() {
-    if (!this.headers.length) return;
-    const key = this.mappingStorageKey(this.headers);
-    const obj = {
-      firstNameCol: this.firstNameCol,
-      lastNameCol: this.lastNameCol,
-      adhesionStartCol: this.adhesionStartCol,
-      adhesionEndCol: this.adhesionEndCol,
-    };
-    localStorage.setItem(key, JSON.stringify(obj));
-  }
-
-  async handleFile(file: File) {
     try {
       const XLSX = await import('xlsx');
-      const isCsv = file.name.toLowerCase().endsWith('.csv') || (file.type && file.type.includes('csv'));
-      let workbook: any;
-      if (isCsv) {
-        const text = await file.text();
-        workbook = XLSX.read(text, {type: 'string'});
-      } else {
-        const data = await file.arrayBuffer();
-        workbook = XLSX.read(data, {type: 'array'});
-      }
+      const isCsv =
+        file.name.toLowerCase().endsWith('.csv') || (file.type?.includes('csv') ?? false);
+      const workbook = isCsv
+        ? XLSX.read(await file.text(), { type: 'string', ...READ_OPTIONS })
+        : XLSX.read(await file.arrayBuffer(), { type: 'array', ...READ_OPTIONS });
+
       const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const json: any[] = XLSX.utils.sheet_to_json(worksheet, {defval: ''});
-      this.rows = json;
+      if (!firstSheetName) throw new Error('Classeur sans feuille.');
+
+      const rows = XLSX.utils.sheet_to_json<SheetRow>(workbook.Sheets[firstSheetName], {
+        defval: '',
+      });
+
       const headerSet = new Set<string>();
-      json.forEach((row) => Object.keys(row).forEach((k) => headerSet.add(k)));
-      this.headers = Array.from(headerSet);
-      this.suggestAndLoadMapping();
-      this.statusMessage = `${this.rows.length} lignes chargées.`;
-      this.parseError = null;
-    } catch (e: any) {
-      this.parseError = "Échec de l'analyse du fichier. Assurez-vous qu'il est valide (.xlsx/.xls/.csv).";
-      console.error(e);
-      this.headers = [];
-      this.rows = [];
+      for (const row of rows) for (const key of Object.keys(row)) headerSet.add(key);
+      const headers = [...headerSet];
+
+      // SheetJS n'échoue pas sur un fichier illisible : il renvoie une feuille vide.
+      // Sans ce contrôle, l'utilisateur verrait « 0 ligne chargée » et plus rien.
+      if (!rows.length || !headers.length) {
+        throw new Error('Aucune ligne exploitable dans la première feuille.');
+      }
+
+      this.fileName.set(file.name);
+      this.rows.set(rows);
+      this.headers.set(headers);
+      // La suggestion sert de base ; les choix enregistrés la recouvrent champ par champ.
+      this.mapping.set({ ...suggestMapping(headers), ...loadMapping(headers) });
+    } catch (error) {
+      console.error(error);
+      this.parseError.set(
+        "Échec de la lecture du fichier : aucune donnée exploitable n'a été trouvée. " +
+          "Vérifiez qu'il s'agit bien d'un export Yapla valide (.xlsx, .xls ou .csv) " +
+          "dont la première feuille contient une ligne d'en-têtes.",
+      );
+      this.fileName.set(null);
+      this.headers.set([]);
+      this.rows.set([]);
+      this.mapping.set(EMPTY_MAPPING);
+    } finally {
+      this.loading.set(false);
     }
   }
 
-  get canExport(): boolean {
-    return !!(this.rows.length && this.firstNameCol && this.lastNameCol && this.adhesionStartCol && this.adhesionEndCol);
+  exportData(): void {
+    if (!this.canExport()) return;
+
+    const report = extractAdherents(this.rows(), this.mapping());
+    this.report.set(report);
+    this.download(buildCsv(report.adherents), this.exportPath());
   }
 
-  formatDate(date: Date): string {
-    if (!date) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  /** Libellé lisible d'un adhérent trop long pour Discord. */
+  describe(adherent: Adherent): string {
+    return adherent.toString();
   }
 
-  private parseDate(value: any): Date | null {
-    if (!value) return null;
-
-    // Si c'est déjà une Date
-    if (value instanceof Date) return value;
-
-    // Si c'est un nombre, considérer comme date Excel
-    if (typeof value === 'number') {
-      // Convertir le numéro de série Excel en date JavaScript
-      // Excel commence le 1/1/1900, mais il y a un bug de date bissextile
-      const excelEpoch = new Date(1899, 11, 30);
-      return new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
-    }
-
-    // Si c'est une chaîne, essayer de l'analyser
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (trimmed === '') return null;
-
-      // Essayer ISO-8601
-      const date = new Date(trimmed);
-      if (!isNaN(date.getTime())) return date;
-    }
-
-    return null;
+  private asText(value: unknown): string {
+    return value === null || value === undefined ? '' : String(value).trim();
   }
 
-  exportData() {
-    if (!this.canExport) {
-      this.statusMessage = "Veuillez compléter toutes les sélections avant d'exporter.";
-      return;
-    }
-
-    // Collecter les adhérents
-    const adherents: Adherent[] = [];
-
-    for (const row of this.rows) {
-      const nom: string | null = row[this.lastNameCol!];
-      const prenom: string | null = row[this.firstNameCol!];
-      const debut: Date | null = this.parseDate(row[this.adhesionStartCol!]);
-      const fin: Date | null = this.parseDate(row[this.adhesionEndCol!]);
-
-      if (!nom || !prenom || !debut || !fin) {
-        continue;
-      }
-
-      adherents.push(new Adherent(nom, prenom, debut, fin));
-    }
-
-    adherents.sort((a, b) => a.debutAdhesion.getTime() - b.debutAdhesion.getTime());
-
-    const uniqueAdherents: Adherent[] = [];
-    const bestByKey: Record<string, Adherent> = {};
-
-    const currentDate = new Date();
-
-    for (const adherent of adherents) {
-      const key = adherent.key();
-      // Before continuing, check if the current date is between debut and fin
-      if (adherent.debutAdhesion > currentDate || adherent.finAdhesion < currentDate) {
-        continue; // Skip non-active members
-      }
-      if (!bestByKey[key] || adherent.debutAdhesion < bestByKey[key].debutAdhesion) {
-        bestByKey[key] = adherent;
-      }
-    }
-
-    for (const key in bestByKey) {
-      uniqueAdherents.push(bestByKey[key]);
-    }
-
-    uniqueAdherents.sort((a, b) => a.debutAdhesion.getTime() - b.debutAdhesion.getTime());
-
-    let csvContent = "Base de données;Base de données;" + this.formatDate(currentDate) + ";" + this.formatDate(currentDate) + "\n";
-    let errorContent = "";
-
-    for (const adherent of uniqueAdherents) {
-      if (adherent.isTooLongForDiscord()) {
-        errorContent += adherent.toString() + "\n";
-      }
-      csvContent += adherent.toCsv() + "\n";
-    }
-
-    const csvBlob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
-    const csvUrl = URL.createObjectURL(csvBlob);
-    const csvLink = document.createElement('a');
-    csvLink.href = csvUrl;
-    csvLink.download = this.exportPath;
-    document.body.appendChild(csvLink);
-    csvLink.click();
-    document.body.removeChild(csvLink);
-    URL.revokeObjectURL(csvUrl);
-
-    if (errorContent) {
-      this.statusMessage = "Exportation terminée avec des erreurs de nom trop longs pour Discord :" +
-        "\n" + errorContent +
-        "\n";
-    }
+  private download(content: string, fileName: string): void {
+    const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 }

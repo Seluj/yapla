@@ -1,89 +1,219 @@
 <div class="container">
   <h1>Exportateur CSV pour Membres Yapla</h1>
-  <p class="preview-note">Téléchargez un fichier Excel ou CSV, associez les colonnes et exportez un CSV propre pour Yapla.</p>
+  <p class="preview-note">
+    Déposez un fichier Excel ou CSV, associez les colonnes et exportez un CSV propre pour le bot
+    Discord. Aucun fichier ne quitte votre navigateur.
+  </p>
 
   <section class="upload-section">
     <h2>Télécharger</h2>
     <div class="form-group">
       <label for="excelFile">Choisir un fichier .xlsx, .xls ou .csv</label>
-      <input id="excelFile" type="file" accept=".xlsx,.xls,.csv" (change)="onFileChange($event)"/>
+      <input id="excelFile" type="file" accept=".xlsx,.xls,.csv" (change)="onFileChange($event)" />
     </div>
 
-    <div class="dropzone"
-         (drop)="onFileDrop($event)"
-         (dragover)="onDragOver($event)">
+    <div class="dropzone" (drop)="onFileDrop($event)" (dragover)="onDragOver($event)">
       Glissez-déposez votre fichier ici
     </div>
 
-    @if (parseError) {
-      <div class="error-message">{{ parseError }}</div>
+    @if (loading()) {
+      <p class="preview-note">Lecture du fichier…</p>
+    }
+
+    @if (parseError()) {
+      <div class="error-message">{{ parseError() }}</div>
+    }
+
+    @if (fileName(); as name) {
+      <p class="preview-note">
+        <strong>{{ name }}</strong> — {{ rows().length }} ligne(s) chargée(s).
+      </p>
     }
   </section>
 
-  @if (headers.length) {
+  @if (headers().length) {
     <section class="mapping-section">
-      <h2>Association des Colonnes</h2>
-      <p class="preview-note">Sélectionnez les colonnes correspondant à chaque champ dans votre fichier Excel.</p>
-      <div class="column-grid" style="display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 1.5rem;">
-        <div class="form-group">
-          <label>Prénom</label>
-          <select [(ngModel)]="firstNameCol" (ngModelChange)="onMappingChange()">
-            <option [ngValue]="null" disabled selected>Choisir une colonne</option>
-            @for (h of headers; track h) {
-              <option [ngValue]="h">{{ h }}</option>
+      <h2>Association des colonnes</h2>
+      <p class="preview-note">
+        Sélectionnez les colonnes correspondant à chaque champ, puis vérifiez l'aperçu ci-dessous.
+      </p>
+      <div class="column-grid">
+        @for (field of mappingFields; track field.key) {
+          <div class="form-group">
+            <label [for]="field.key">{{ field.label }}</label>
+            <!--
+              La sélection est portée par `[selected]` sur chaque option, et non par
+              `[value]` sur le `select` : ce dernier est appliqué avant que le `@for`
+              n'ait créé les options, et le navigateur retombe alors sur la première.
+            -->
+            <select [id]="field.key" (change)="onColumnChange(field.key, $event)">
+              <!-- Un champ facultatif doit pouvoir être remis à vide, son option ne
+                   peut donc pas être désactivée comme celle des champs obligatoires. -->
+              <option
+                value=""
+                [disabled]="field.required"
+                [selected]="mapping()[field.key] === null"
+              >
+                {{ field.required ? 'Choisir une colonne' : 'Ne pas filtrer sur le statut' }}
+              </option>
+              @for (header of headers(); track header) {
+                <option [value]="header" [selected]="mapping()[field.key] === header">
+                  {{ header }}
+                </option>
+              }
+            </select>
+            @if (field.hint) {
+              <p class="field-hint">{{ field.hint }}</p>
             }
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Nom</label>
-          <select [(ngModel)]="lastNameCol" (ngModelChange)="onMappingChange()">
-            <option [ngValue]="null" disabled selected>Choisir une colonne</option>
-            @for (h of headers; track h) {
-              <option [ngValue]="h">{{ h }}</option>
-            }
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Début d'adhésion</label>
-          <select [(ngModel)]="adhesionStartCol" (ngModelChange)="onMappingChange()">
-            <option [ngValue]="null" disabled selected>Choisir une colonne</option>
-            @for (h of headers; track h) {
-              <option [ngValue]="h">{{ h }}</option>
-            }
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Fin d'adhésion</label>
-          <select [(ngModel)]="adhesionEndCol" (ngModelChange)="onMappingChange()">
-            <option [ngValue]="null" disabled selected>Choisir une colonne</option>
-            @for (h of headers; track h) {
-              <option [ngValue]="h">{{ h }}</option>
-            }
-          </select>
-        </div>
+          </div>
+        }
       </div>
+
+      @if (statusFilterDisabled()) {
+        <p class="warning-message">
+          Aucune colonne « Statut d'adhésion » n'est associée : <strong>toutes</strong> les
+          adhésions seront exportées, y compris les annulées, les expirées et celles en attente.
+        </p>
+      }
     </section>
 
-    <section class="preview-section">
+    @if (preview().length) {
+      <section class="preview-section">
+        <h2>Aperçu</h2>
+        <p class="preview-note">
+          Les {{ previewLimit }} premières lignes, avec les dates telles qu'elles seront exportées.
+          Une ligne signalée en rouge sera écartée de l'export.
+        </p>
+        <table class="preview-table">
+          <thead>
+            <tr>
+              <th>Ligne</th>
+              <th>Nom</th>
+              <th>Prénom</th>
+              <th>Début (fichier)</th>
+              <th>Début (interprété)</th>
+              <th>Fin (fichier)</th>
+              <th>Fin (interprété)</th>
+              @if (mapping().statusCol) {
+                <th>Statut</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of preview(); track row.line) {
+              <tr [class.invalid-row]="!row.valid">
+                <td>{{ row.line }}</td>
+                <td>{{ row.nom }}</td>
+                <td>{{ row.prenom }}</td>
+                <td>{{ row.debut }}</td>
+                <td>{{ row.debutParsed || '—' }}</td>
+                <td>{{ row.fin }}</td>
+                <td>{{ row.finParsed || '—' }}</td>
+                @if (mapping().statusCol) {
+                  <td>{{ row.statut || '—' }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </section>
+    }
+
+    <section class="export-section">
       <h2>Exporter</h2>
       <div class="form-group">
-        <label>Nom du fichier d'exportation</label>
-        <input type="text" [(ngModel)]="exportPath" placeholder="adherents.csv" readonly>
+        <label for="exportPath">Nom du fichier d'exportation</label>
+        <input id="exportPath" type="text" [value]="exportPath()" readonly />
       </div>
-      <button (click)="exportData()" [disabled]="!canExport">
-        Exporter CSV
-      </button>
-      @if (!canExport) {
-        <p class="preview-note">Sélectionnez les quatre champs pour activer l'exportation.</p>
+      <button type="button" (click)="exportData()" [disabled]="!canExport()">Exporter CSV</button>
+      @if (!canExport()) {
+        <p class="preview-note">Sélectionnez les quatre colonnes pour activer l'exportation.</p>
       }
 
-      @if (statusMessage) {
+      @if (report(); as result) {
         <div class="status-message">
-          <pre>{{ statusMessage }}</pre>
+          <p>
+            <strong>{{ result.adherents.length }}</strong> adhérent(s) exporté(s) sur
+            {{ result.totalRows }} ligne(s) lue(s).
+          </p>
+          <ul>
+            @if (result.notValidatedCount) {
+              <li>
+                {{ result.notValidatedCount }} adhésion(s) écartée(s) car non validée(s) (expirée,
+                annulée ou en attente).
+              </li>
+            }
+            @if (!result.statusFiltered) {
+              <li class="warning">
+                Aucun filtre sur le statut d'adhésion : toutes les adhésions ont été prises en
+                compte.
+              </li>
+            }
+            @if (result.inactiveCount) {
+              <li>{{ result.inactiveCount }} adhésion(s) non active(s) à la date du jour.</li>
+            }
+            @if (result.duplicateCount) {
+              <li>
+                {{ result.duplicateCount }} doublon(s) fusionné(s) sur (nom, prénom) — l'adhésion la
+                plus ancienne est conservée.
+              </li>
+            }
+            @if (result.rejected.length) {
+              <li class="warning">
+                {{ result.rejected.length }} ligne(s) écartée(s) : nom, prénom ou date illisible.
+              </li>
+            }
+          </ul>
+
+          @if (result.rejected.length) {
+            <details open>
+              <summary>Lignes écartées</summary>
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    <th>Ligne</th>
+                    <th>Motif</th>
+                    <th>Nom</th>
+                    <th>Prénom</th>
+                    <th>Début</th>
+                    <th>Fin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of rejectedPreview(); track row.line) {
+                    <tr>
+                      <td>{{ row.line }}</td>
+                      <td>{{ row.reason }}</td>
+                      <td>{{ row.nom }}</td>
+                      <td>{{ row.prenom }}</td>
+                      <td>{{ row.debut }}</td>
+                      <td>{{ row.fin }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              @if (result.rejected.length > rejectedSample) {
+                <p class="preview-note">
+                  … et {{ result.rejected.length - rejectedSample }} autre(s) ligne(s).
+                </p>
+              }
+            </details>
+          }
+
+          @if (result.tooLongForDiscord.length) {
+            <details open>
+              <summary>
+                Noms trop longs pour Discord ({{ result.tooLongForDiscord.length }})
+              </summary>
+              <ul>
+                @for (adherent of result.tooLongForDiscord; track adherent.key()) {
+                  <li>{{ describe(adherent) }}</li>
+                }
+              </ul>
+            </details>
+          }
         </div>
       }
     </section>
   }
 </div>
-
-<router-outlet/>
