@@ -45,33 +45,6 @@ describe('App', () => {
     expect(app.canExport()).toBe(true);
   });
 
-  it('affiche dans l’aperçu les dates telles qu’elles seront interprétées', () => {
-    const rows: SheetRow[] = [
-      { Nom: 'DUPONT', Prénom: 'Marie', Début: '15/09/2025', Fin: '31/08/2026' },
-      { Nom: 'MARTIN', Prénom: 'Luc', Début: 'bientôt', Fin: '31/08/2026' },
-    ];
-    app.rows.set(rows);
-    app.headers.set(['Nom', 'Prénom', 'Début', 'Fin']);
-    app.mapping.set({
-      firstNameCol: 'Prénom',
-      lastNameCol: 'Nom',
-      adhesionStartCol: 'Début',
-      adhesionEndCol: 'Fin',
-      statusCol: null,
-    });
-
-    const preview = app.preview();
-
-    expect(preview[0]).toMatchObject({ debutParsed: '2025-09-15', valid: true });
-    expect(preview[1]).toMatchObject({ debutParsed: '', valid: false });
-  });
-
-  it('laisse l’aperçu vide tant que le mapping est incomplet', () => {
-    app.rows.set([{ Nom: 'DUPONT' }]);
-
-    expect(app.preview()).toEqual([]);
-  });
-
   it('lit un CSV de bout en bout sans laisser SheetJS réinterpréter les dates', async () => {
     // Régression : sans `raw`, SheetJS convertissait lui-même « 01/09/2025 » en
     // numéro de série avec la convention américaine (9 janvier), avant même que
@@ -93,7 +66,6 @@ describe('App', () => {
       adhesionEndCol: 'Fin adhésion',
       statusCol: null,
     });
-    expect(app.preview().map((row) => row.debutParsed)).toEqual(['2025-09-01', '2026-03-15']);
   });
 
   it('signale un fichier illisible sans casser l’état du composant', async () => {
@@ -156,11 +128,6 @@ describe('App', () => {
     expect(app.mapping().statusCol).toBe("Adhésion - Statut d'adhésion");
     expect(app.statusFilterDisabled()).toBe(false);
     expect((fixture.nativeElement as HTMLElement).querySelector('.warning-message')).toBeNull();
-    // L'aperçu montre le statut et marque la ligne qui sera écartée.
-    expect(app.preview().map((row) => [row.statut, row.valid])).toEqual([
-      ['Validée', true],
-      ['Annulée', false],
-    ]);
   });
 
   it('peut remettre le filtre de statut à vide', async () => {

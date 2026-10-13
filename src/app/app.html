@@ -1,18 +1,14 @@
 <div class="container">
   <h1>Exportateur CSV pour Membres Yapla</h1>
-  <p class="preview-note">
-    Déposez un fichier Excel ou CSV, associez les colonnes et exportez un CSV propre pour le bot
-    Discord. Aucun fichier ne quitte votre navigateur.
-  </p>
 
   <section class="upload-section">
     <h2>Télécharger</h2>
     <div class="form-group">
       <label for="excelFile">Choisir un fichier .xlsx, .xls ou .csv</label>
-      <input id="excelFile" type="file" accept=".xlsx,.xls,.csv" (change)="onFileChange($event)" />
+      <input (change)="onFileChange($event)" accept=".xlsx,.xls,.csv" id="excelFile" type="file"/>
     </div>
 
-    <div class="dropzone" (drop)="onFileDrop($event)" (dragover)="onDragOver($event)">
+    <div (dragover)="onDragOver($event)" (drop)="onFileDrop($event)" class="dropzone">
       Glissez-déposez votre fichier ici
     </div>
 
@@ -34,37 +30,28 @@
   @if (headers().length) {
     <section class="mapping-section">
       <h2>Association des colonnes</h2>
-      <p class="preview-note">
-        Sélectionnez les colonnes correspondant à chaque champ, puis vérifiez l'aperçu ci-dessous.
-      </p>
       <div class="column-grid">
         @for (field of mappingFields; track field.key) {
           <div class="form-group">
-            <label [for]="field.key">{{ field.label }}</label>
-            <!--
-              La sélection est portée par `[selected]` sur chaque option, et non par
-              `[value]` sur le `select` : ce dernier est appliqué avant que le `@for`
-              n'ait créé les options, et le navigateur retombe alors sur la première.
-            -->
-            <select [id]="field.key" (change)="onColumnChange(field.key, $event)">
-              <!-- Un champ facultatif doit pouvoir être remis à vide, son option ne
-                   peut donc pas être désactivée comme celle des champs obligatoires. -->
+            <label [for]="field.key">
+              {{ field.label }} @if (field.hint) {
+              <span class="field-hint">{{ field.hint }}</span>
+            }
+            </label>
+            <select (change)="onColumnChange(field.key, $event)" [id]="field.key">
               <option
-                value=""
                 [disabled]="field.required"
                 [selected]="mapping()[field.key] === null"
+                value=""
               >
                 {{ field.required ? 'Choisir une colonne' : 'Ne pas filtrer sur le statut' }}
               </option>
               @for (header of headers(); track header) {
-                <option [value]="header" [selected]="mapping()[field.key] === header">
+                <option [selected]="mapping()[field.key] === header" [value]="header">
                   {{ header }}
                 </option>
               }
             </select>
-            @if (field.hint) {
-              <p class="field-hint">{{ field.hint }}</p>
-            }
           </div>
         }
       </div>
@@ -77,184 +64,137 @@
       }
     </section>
 
-    @if (preview().length) {
-      <section class="preview-section">
-        <h2>Aperçu</h2>
-        <p class="preview-note">
-          Les {{ previewLimit }} premières lignes, avec les dates telles qu'elles seront exportées.
-          Une ligne signalée en rouge sera écartée de l'export.
-        </p>
-        <table class="preview-table">
-          <thead>
-            <tr>
-              <th>Ligne</th>
-              <th>Nom</th>
-              <th>Prénom</th>
-              <th>Début (fichier)</th>
-              <th>Début (interprété)</th>
-              <th>Fin (fichier)</th>
-              <th>Fin (interprété)</th>
-              @if (mapping().statusCol) {
-                <th>Statut</th>
-              }
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of preview(); track row.line) {
-              <tr [class.invalid-row]="!row.valid">
-                <td>{{ row.line }}</td>
-                <td>{{ row.nom }}</td>
-                <td>{{ row.prenom }}</td>
-                <td>{{ row.debut }}</td>
-                <td>{{ row.debutParsed || '—' }}</td>
-                <td>{{ row.fin }}</td>
-                <td>{{ row.finParsed || '—' }}</td>
-                @if (mapping().statusCol) {
-                  <td>{{ row.statut || '—' }}</td>
-                }
-              </tr>
-            }
-          </tbody>
-        </table>
-      </section>
-    }
-
     <section class="export-section">
-      <h2>Exporter</h2>
-      <div class="form-group">
-        <label for="exportPath">Nom du fichier d'exportation</label>
-        <input id="exportPath" type="text" [value]="exportPath()" readonly />
-      </div>
-      <button type="button" (click)="exportData()" [disabled]="!canExport()">Exporter CSV</button>
-      @if (!canExport()) {
-        <p class="preview-note">Sélectionnez les quatre colonnes pour activer l'exportation.</p>
-      }
-
-      @if (report(); as result) {
-        <div class="status-message">
-          <p>
-            <strong>{{ result.adherents.length }}</strong> adhérent(s) exporté(s) sur
-            {{ result.totalRows }} ligne(s) lue(s).
-          </p>
-          <ul>
-            @if (result.notValidatedCount) {
-              <li>
-                {{ result.notValidatedCount }} adhésion(s) écartée(s) car non validée(s) (expirée,
-                annulée ou en attente).
-              </li>
-            }
-            @if (!result.statusFiltered) {
-              <li class="warning">
-                Aucun filtre sur le statut d'adhésion : toutes les adhésions ont été prises en
-                compte.
-              </li>
-            }
-            @if (result.inactiveCount) {
-              <li>{{ result.inactiveCount }} adhésion(s) non active(s) à la date du jour.</li>
-            }
-            @if (result.duplicateCount) {
-              <li>
-                {{ result.duplicateCount }} doublon(s) fusionné(s) sur (nom, prénom) — l'adhésion la
-                plus ancienne est conservée.
-              </li>
-            }
-            @if (result.rejected.length) {
-              <li class="warning">
-                {{ result.rejected.length }} ligne(s) écartée(s) : nom, prénom ou date illisible.
-              </li>
-            }
-          </ul>
-
-          @if (result.rejected.length) {
-            <details open>
-              <summary>Lignes écartées</summary>
-              <table class="preview-table">
-                <thead>
-                  <tr>
-                    <th>Ligne</th>
-                    <th>Motif</th>
-                    <th>Nom</th>
-                    <th>Prénom</th>
-                    <th>Début</th>
-                    <th>Fin</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of rejectedPreview(); track row.line) {
-                    <tr>
-                      <td>{{ row.line }}</td>
-                      <td>{{ row.reason }}</td>
-                      <td>{{ row.nom }}</td>
-                      <td>{{ row.prenom }}</td>
-                      <td>{{ row.debut }}</td>
-                      <td>{{ row.fin }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-              @if (result.rejected.length > rejectedSample) {
-                <p class="preview-note">
-                  … et {{ result.rejected.length - rejectedSample }} autre(s) ligne(s).
-                </p>
-              }
-            </details>
+      <div style="display: flex; flex-direction: row; gap: 1.5rem;">
+        <div style="width: 100%;">
+          <h2>Exporter</h2>
+          <div class="form-group">
+            <label for="exportPath">Nom du fichier d'exportation</label>
+            <input [value]="exportPath()" id="exportPath" readonly type="text"/>
+          </div>
+          <button (click)="exportData()" [disabled]="!canExport()" type="button">Exporter CSV</button>
+          @if (!canExport()) {
+            <p class="preview-note">Sélectionnez les quatre colonnes pour activer l'exportation.</p>
           }
 
-          @if (result.tooLongForDiscord.length) {
-            <details open>
-              <summary>
-                Noms trop longs pour Discord ({{ result.tooLongForDiscord.length }})
-              </summary>
+          @if (report(); as result) {
+            <div class="status-message">
+              <p>
+                <strong>{{ result.adherents.length }}</strong> adhérent(s) exporté(s) sur
+                {{ result.totalRows }} ligne(s) lue(s).
+              </p>
               <ul>
-                @for (adherent of result.tooLongForDiscord; track adherent.key()) {
-                  <li>{{ describe(adherent) }}</li>
+                @if (result.notValidatedCount) {
+                  <li>
+                    {{ result.notValidatedCount }} adhésion(s) écartée(s) car non validée(s) (expirée,
+                    annulée ou en attente).
+                  </li>
+                }
+                @if (!result.statusFiltered) {
+                  <li class="warning">
+                    Aucun filtre sur le statut d'adhésion : toutes les adhésions ont été prises en
+                    compte.
+                  </li>
+                }
+                @if (result.inactiveCount) {
+                  <li>{{ result.inactiveCount }} adhésion(s) non active(s) à la date du jour.</li>
+                }
+                @if (result.duplicateCount) {
+                  <li>
+                    {{ result.duplicateCount }} doublon(s) fusionné(s) sur (nom, prénom) — l'adhésion la
+                    plus ancienne est conservée.
+                  </li>
+                }
+                @if (result.rejected.length) {
+                  <li class="warning">
+                    {{ result.rejected.length }} ligne(s) écartée(s) : nom, prénom ou date illisible.
+                  </li>
                 }
               </ul>
-            </details>
+
+              @if (result.rejected.length) {
+                <details open>
+                  <summary>Lignes écartées</summary>
+                  <table class="preview-table">
+                    <thead>
+                    <tr>
+                      <th>Ligne</th>
+                      <th>Motif</th>
+                      <th>Nom</th>
+                      <th>Prénom</th>
+                      <th>Début</th>
+                      <th>Fin</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of rejectedPreview(); track row.line) {
+                        <tr>
+                          <td>{{ row.line }}</td>
+                          <td>{{ row.reason }}</td>
+                          <td>{{ row.nom }}</td>
+                          <td>{{ row.prenom }}</td>
+                          <td>{{ row.debut }}</td>
+                          <td>{{ row.fin }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                  @if (result.rejected.length > rejectedSample) {
+                    <p class="preview-note">
+                      … et {{ result.rejected.length - rejectedSample }} autre(s) ligne(s).
+                    </p>
+                  }
+                </details>
+              }
+
+              @if (result.tooLongForDiscord.length) {
+                <details open>
+                  <summary>
+                    Noms trop longs pour Discord ({{ result.tooLongForDiscord.length }})
+                  </summary>
+                  <ul>
+                    @for (adherent of result.tooLongForDiscord; track adherent.key()) {
+                      <li>{{ describe(adherent) }}</li>
+                    }
+                  </ul>
+                </details>
+              }
+            </div>
           }
         </div>
-      }
-    </section>
+        <div style="width: 100%;">
+          <h2>Envoyer au bot</h2>
 
-    <section class="send-section">
-      <h2>Envoyer au bot</h2>
-      <p class="preview-note">
-        Remplace directement le fichier des adhérents du bot Discord, sans passer par la commande
-        <code>/upload</code>. Le bot applique les mêmes contrôles de format.
-      </p>
+          <div class="form-group">
+            <label for="botToken">Jeton de sécurité</label>
+            <input
+              (input)="onTokenChange($event)"
+              [value]="botToken()"
+              autocomplete="off"
+              id="botToken"
+              placeholder="Entrer le jeton ici"
+              spellcheck="false"
+              type="password"
+            />
+          </div>
 
-      <div class="form-group">
-        <label for="botToken">Jeton d'API du bot</label>
-        <input
-          id="botToken"
-          type="password"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="Jeton configuré dans API_TOKEN"
-          [value]="botToken()"
-          (input)="onTokenChange($event)"
-        />
+          <button (click)="sendToBot()" [disabled]="!canSend()" type="button">
+            {{ sendState().kind === 'sending' ? 'Envoi en cours…' : 'Envoyer au bot' }}
+          </button>
+
+          @if (sendState(); as state) {
+            @if (state.kind === 'sent') {
+              <p class="status-message">
+                Fichier déposé dans le bot : <strong>{{ state.rows }}</strong> ligne(s) enregistrée(s).
+                La commande <code>/role</code> utilisera cette version.
+              </p>
+            }
+            @if (state.kind === 'failed') {
+              <p class="status-message warning">{{ state.message }}</p>
+            }
+          }
+        </div>
       </div>
-
-      <button type="button" (click)="sendToBot()" [disabled]="!canSend()">
-        {{ sendState().kind === 'sending' ? 'Envoi en cours…' : 'Envoyer au bot' }}
-      </button>
-
-      @if (canExport() && !botToken().trim()) {
-        <p class="preview-note">Renseignez le jeton pour activer l'envoi.</p>
-      }
-
-      @if (sendState(); as state) {
-        @if (state.kind === 'sent') {
-          <p class="status-message">
-            Fichier déposé dans le bot : <strong>{{ state.rows }}</strong> ligne(s) enregistrée(s).
-            La commande <code>/role</code> utilisera cette version.
-          </p>
-        }
-        @if (state.kind === 'failed') {
-          <p class="status-message warning">{{ state.message }}</p>
-        }
-      }
     </section>
   }
 </div>

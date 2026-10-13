@@ -108,39 +108,6 @@ export class App {
     () => this.headers().length > 0 && !this.mapping().statusCol,
   );
 
-  /**
-   * Aperçu des premières lignes telles qu'elles seront exportées, dates comprises :
-   * c'est le seul endroit où l'utilisateur peut vérifier que l'association des
-   * colonnes et la lecture des dates correspondent bien à son fichier.
-   */
-  readonly preview = computed<readonly PreviewRow[]>(() => {
-    const mapping = this.mapping();
-    if (!isMappingComplete(mapping)) return [];
-
-    return this.rows()
-      .slice(0, PREVIEW_ROWS)
-      .map((row, index) => {
-        const debut = row[mapping.adhesionStartCol!];
-        const fin = row[mapping.adhesionEndCol!];
-        const debutParsed = parseDate(debut);
-        const finParsed = parseDate(fin);
-        const nom = this.asText(row[mapping.lastNameCol!]);
-        const prenom = this.asText(row[mapping.firstNameCol!]);
-        const statusOk = !mapping.statusCol || isValidatedStatus(row[mapping.statusCol]);
-        return {
-          line: index + 2,
-          nom,
-          prenom,
-          debut: formatCellValue(debut),
-          fin: formatCellValue(fin),
-          debutParsed: formatDate(debutParsed),
-          finParsed: formatDate(finParsed),
-          statut: mapping.statusCol ? formatCellValue(row[mapping.statusCol]) : '',
-          valid: statusOk && !!nom && !!prenom && !!debutParsed && !!finParsed,
-        };
-      });
-  });
-
   /** Lignes rejetées à détailler dans le compte rendu. */
   readonly rejectedPreview = computed(
     () => this.report()?.rejected.slice(0, REJECTED_SAMPLE) ?? [],

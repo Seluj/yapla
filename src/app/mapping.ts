@@ -42,7 +42,7 @@ export const MAPPING_FIELDS: readonly MappingFieldDescriptor[] = [
     key: 'statusCol',
     label: "Statut d'adhésion",
     required: false,
-    hint: "Facultatif. Si renseigné, seules les adhésions validées sont exportées. Cette colonne n'apparaît pas dans le CSV.",
+    hint: "Facultatif",
   },
 ];
 
