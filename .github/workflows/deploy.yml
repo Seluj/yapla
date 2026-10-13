@@ -1,0 +1,87 @@
+name: Déploiement
+
+# Construit l'image Docker et la publie sur le registre, comme `release.sh` du dépôt
+# bds-deploy. Déclenché par un tag `vX.Y.Z` qui doit correspondre à la version du
+# package.json : le numéro de version du dépôt reste la seule source de vérité.
+#
+# Le serveur n'est pas mis à jour ici : y passer `WEB_VERSION` dans le `.env` puis
+#   docker compose pull && docker compose up -d
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+# Deux publications simultanées pourraient passer toutes deux la vérification
+# d'existence du tag avant que l'une ne pousse.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  REGISTRY: registry.selutech.fr
+  IMAGE: registry.selutech.fr/bds/yapla
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Vérifier la version
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [[ "${GITHUB_REF_NAME}" != "v${version}" ]]; then
+            echo "::error::Le tag ${GITHUB_REF_NAME} ne correspond pas à la version du package.json (${version})."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      # Une version déjà publiée ne doit pas être réécrite : un tag qui change sous
+      # les pieds du serveur rend tout diagnostic impossible.
+      - name: Refuser une version déjà publiée
+        run: |
+          if docker manifest inspect "${IMAGE}:${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "::error::${IMAGE}:${{ steps.version.outputs.version }} existe déjà sur le registre. Incrémentez la version dans le package.json."
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Plateforme explicite : le serveur est x86, et l'image ne doit pas dépendre
+      # de l'architecture du runner.
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Résumé
+        run: |
+          {
+            echo "### Image publiée"
+            echo
+            echo "\`${IMAGE}:${{ steps.version.outputs.version }}\`"
+            echo
+            echo "Sur le serveur : \`WEB_VERSION=${{ steps.version.outputs.version }}\` dans \`.env\`, puis"
+            echo "\`docker compose pull && docker compose up -d\`."
+          } >> "$GITHUB_STEP_SUMMARY"
