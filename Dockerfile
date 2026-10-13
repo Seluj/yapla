@@ -2,8 +2,8 @@
 # Étape 1 : build de l'application Angular
 # =========================================
 # Angular 22 exige Node ^22.22.3 || ^24.15.0 || >=26.0.0.
-ARG NODE_VERSION=24.21.0-alpine
-ARG NGINX_VERSION=alpine3.22
+ARG NODE_VERSION=26-alpine
+ARG NGINX_VERSION=alpine3.24
 
 FROM node:${NODE_VERSION} AS builder
 
