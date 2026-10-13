@@ -1,14 +1,6 @@
 import { Component, computed, signal } from '@angular/core';
 
-import {
-  Adherent,
-  ExtractionReport,
-  SheetRow,
-  buildCsv,
-  extractAdherents,
-  isValidatedStatus,
-} from './adherent';
-import { formatDate, parseDate } from './date-utils';
+import { Adherent, ExtractionReport, SheetRow, buildCsv, extractAdherents } from './adherent';
 import {
   ColumnMapping,
   EMPTY_MAPPING,
@@ -19,7 +11,6 @@ import {
 } from './mapping';
 import { UploadError, loadBotToken, saveBotToken, sendCsvToBot } from './bot-api';
 import { loadMapping, saveMapping } from './mapping-storage';
-import { formatCellValue } from './text';
 
 /**
  * Options de lecture SheetJS.
@@ -48,21 +39,6 @@ type SendState =
   | { kind: 'sending' }
   | { kind: 'sent'; rows: number }
   | { kind: 'failed'; message: string };
-
-/** Une ligne de l'aperçu, avec les dates telles qu'elles seront interprétées. */
-interface PreviewRow {
-  line: number;
-  nom: string;
-  prenom: string;
-  debut: string;
-  fin: string;
-  debutParsed: string;
-  finParsed: string;
-  /** Valeur brute du statut, vide si aucune colonne de statut n'est associée. */
-  statut: string;
-  /** Faux lorsque la ligne sera écartée de l'export, quelle qu'en soit la raison. */
-  valid: boolean;
-}
 
 @Component({
   selector: 'app-root',

@@ -5,7 +5,7 @@
     <h2>Télécharger</h2>
     <div class="form-group">
       <label for="excelFile">Choisir un fichier .xlsx, .xls ou .csv</label>
-      <input (change)="onFileChange($event)" accept=".xlsx,.xls,.csv" id="excelFile" type="file"/>
+      <input (change)="onFileChange($event)" accept=".xlsx,.xls,.csv" id="excelFile" type="file" />
     </div>
 
     <div (dragover)="onDragOver($event)" (drop)="onFileDrop($event)" class="dropzone">
@@ -34,9 +34,10 @@
         @for (field of mappingFields; track field.key) {
           <div class="form-group">
             <label [for]="field.key">
-              {{ field.label }} @if (field.hint) {
-              <span class="field-hint">{{ field.hint }}</span>
-            }
+              {{ field.label }}
+              @if (field.hint) {
+                <span class="field-hint">{{ field.hint }}</span>
+              }
             </label>
             <select (change)="onColumnChange(field.key, $event)" [id]="field.key">
               <option
@@ -65,14 +66,16 @@
     </section>
 
     <section class="export-section">
-      <div style="display: flex; flex-direction: row; gap: 1.5rem;">
-        <div style="width: 100%;">
+      <div style="display: flex; flex-direction: row; gap: 1.5rem">
+        <div style="width: 100%">
           <h2>Exporter</h2>
           <div class="form-group">
             <label for="exportPath">Nom du fichier d'exportation</label>
-            <input [value]="exportPath()" id="exportPath" readonly type="text"/>
+            <input [value]="exportPath()" id="exportPath" readonly type="text" />
           </div>
-          <button (click)="exportData()" [disabled]="!canExport()" type="button">Exporter CSV</button>
+          <button (click)="exportData()" [disabled]="!canExport()" type="button">
+            Exporter CSV
+          </button>
           @if (!canExport()) {
             <p class="preview-note">Sélectionnez les quatre colonnes pour activer l'exportation.</p>
           }
@@ -86,8 +89,8 @@
               <ul>
                 @if (result.notValidatedCount) {
                   <li>
-                    {{ result.notValidatedCount }} adhésion(s) écartée(s) car non validée(s) (expirée,
-                    annulée ou en attente).
+                    {{ result.notValidatedCount }} adhésion(s) écartée(s) car non validée(s)
+                    (expirée, annulée ou en attente).
                   </li>
                 }
                 @if (!result.statusFiltered) {
@@ -101,13 +104,14 @@
                 }
                 @if (result.duplicateCount) {
                   <li>
-                    {{ result.duplicateCount }} doublon(s) fusionné(s) sur (nom, prénom) — l'adhésion la
-                    plus ancienne est conservée.
+                    {{ result.duplicateCount }} doublon(s) fusionné(s) sur (nom, prénom) —
+                    l'adhésion la plus ancienne est conservée.
                   </li>
                 }
                 @if (result.rejected.length) {
                   <li class="warning">
-                    {{ result.rejected.length }} ligne(s) écartée(s) : nom, prénom ou date illisible.
+                    {{ result.rejected.length }} ligne(s) écartée(s) : nom, prénom ou date
+                    illisible.
                   </li>
                 }
               </ul>
@@ -117,14 +121,14 @@
                   <summary>Lignes écartées</summary>
                   <table class="preview-table">
                     <thead>
-                    <tr>
-                      <th>Ligne</th>
-                      <th>Motif</th>
-                      <th>Nom</th>
-                      <th>Prénom</th>
-                      <th>Début</th>
-                      <th>Fin</th>
-                    </tr>
+                      <tr>
+                        <th>Ligne</th>
+                        <th>Motif</th>
+                        <th>Nom</th>
+                        <th>Prénom</th>
+                        <th>Début</th>
+                        <th>Fin</th>
+                      </tr>
                     </thead>
                     <tbody>
                       @for (row of rejectedPreview(); track row.line) {
@@ -162,7 +166,7 @@
             </div>
           }
         </div>
-        <div style="width: 100%;">
+        <div style="width: 100%">
           <h2>Envoyer au bot</h2>
 
           <div class="form-group">
@@ -185,8 +189,8 @@
           @if (sendState(); as state) {
             @if (state.kind === 'sent') {
               <p class="status-message">
-                Fichier déposé dans le bot : <strong>{{ state.rows }}</strong> ligne(s) enregistrée(s).
-                La commande <code>/role</code> utilisera cette version.
+                Fichier déposé dans le bot : <strong>{{ state.rows }}</strong> ligne(s)
+                enregistrée(s). La commande <code>/role</code> utilisera cette version.
               </p>
             }
             @if (state.kind === 'failed') {

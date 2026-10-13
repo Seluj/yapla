@@ -2,7 +2,6 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { App } from './app';
-import { SheetRow } from './adherent';
 
 describe('App', () => {
   let fixture: ComponentFixture<App>;

@@ -42,7 +42,7 @@ export const MAPPING_FIELDS: readonly MappingFieldDescriptor[] = [
     key: 'statusCol',
     label: "Statut d'adhésion",
     required: false,
-    hint: "Facultatif",
+    hint: 'Facultatif',
   },
 ];
 
